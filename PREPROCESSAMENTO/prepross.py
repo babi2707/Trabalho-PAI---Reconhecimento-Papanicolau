@@ -11,7 +11,11 @@ os.makedirs(output_dir, exist_ok=True)
 
 # Função para recortar e armazenar a sub-imagem
 def recortar_e_armazenar(imagem_path, nucleus_x, nucleus_y, bethesda_system, cell_id):
-    imagem = Image.open(imagem_path)
+    try:
+        imagem = Image.open(imagem_path)
+    except FileNotFoundError:
+        return
+    
     x = int(nucleus_x)
     y = int(nucleus_y)
     w = 100  # Largura da sub-imagem
