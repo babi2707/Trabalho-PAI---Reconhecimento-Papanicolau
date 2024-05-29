@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cancer Detection App</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/image-js/1.7.0/image.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/image-js@1.13.1/dist/image-js.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/glcm"></script> <!-- Biblioteca para calcular descritores de Haralick -->
+    
+</head>
+<body>
+    <div class="container">
+        <h1>Cancer Detection App</h1>
+        <input type="file" id="file-input" accept="image/*">
+        <button onclick="uploadImage(event)">Enviar Imagem</button>
+        <button onclick="convertToGrayScale()">Converter para Tons de Cinza</button>
+        <button onclick="generateHistogram()">Gerar Histograma</button>
+        <button onclick="extractHaralickDescriptors()">Extrair Descritores de Haralick</button>
+        <button onclick="extractHuMoments()">Extrair Momentos Invariantes de Hu</button>
+        <button onclick="classifyCancer()">Classificar Sub-imagem para Câncer</button>
+        <div id="result"></div>
+        <canvas id="canvas" style="display:none;"></canvas>
+        <div>
+            <canvas id="grayHistogramCanvas" width="400" height="150"></canvas>
+            <canvas id="hsvHistogramCanvasH" width="400" height="150"></canvas>
+            <canvas id="hsvHistogramCanvasS" width="400" height="150"></canvas>
+            <canvas id="hsvHistogramCanvasV" width="400" height="150"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let grayHistogramChart, hsvHistogramChartH, hsvHistogramChartS, hsvHistogramChartV;
+
+        function uploadImage(event) {
+            event.preventDefault();
+            console.log("Imagem enviada");
+            var fileInput = document.getElementById('file-input');
+            var file = fileInput.files[0];
+            var formData = new FormData();
+            formData.append('image', file);
+
+            fetch('http://localhost:5000/detect-cancer', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayResult(data);
+                console.log(data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        function displayResult(data) {
+            var resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <h2>Results:</h2>
+                <p>${data.type}</p>
+            `;
+        }
+
+        function convertToGrayScale() {
+            var fileInput = document.getElementById('file-input');
+            var file = fileInput.files[0];
+            if (!file) {
+                alert("Por favor, selecione uma imagem primeiro.");
+                return;
+            }
+
+            var reader = new FileReader();
+            reader.onload = function(event) {
+                var img = new Image();
+                img.onload = function() {
+                    var canvas = document.getElementById('canvas');
+                    var ctx = canvas.getContext('2d');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+
+                    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    var data = imageData.data;
+                    for (var i = 0; i < data.length; i += 4) {
+                        var avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                        data[i] = avg;     // Red
+                        data[i + 1] = avg; // Green
+                        data[i + 2] = avg; // Blue
+                    }
+                    ctx.putImageData(imageData, 0, 0);
+
+                    document.getElementById('result').innerHTML = '<h2>Imagem em Tons de Cinza:</h2>';
+                    canvas.style.display = 'block';
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function generateHistogram() {
+            var fileInput = document.getElementById('file-input');
+            var file = fileInput.files[0];
+            if (!file) {
+                alert("Por favor, selecione uma imagem primeiro.");
+                return;
+            }
+
+            var reader = new FileReader();
+            reader.onload = function(event) {
+                var img = new Image();
+                img.onload = function() {
+                    var canvas = document.getElementById('canvas');
+                    var ctx = canvas.getContext('2d');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+
+                    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    var data = imageData.data;
+                    var grayValues = new Array(256).fill(0);
+                    var hsvValues = { h: new Array(361).fill(0), s: new Array(101).fill(0), v: new Array(101).fill(0) };
+
+                    for (var i = 0; i < data.length; i += 4) {
+                        var r = data[i];
+                        var g = data[i + 1];
+                        var b = data[i + 2];
+                        var gray = Math.round((r + g + b) / 3);
+                        grayValues[gray]++;
+
+                        var hsv = rgbToHsv(r, g, b);
+                        hsvValues.h[Math.round(hsv.h)]++;
+                        hsvValues.s[Math.round(hsv.s * 100)]++;
+                        hsvValues.v[Math.round(hsv.v * 100)]++;
+                    }
+
+                    displayHistogram(grayValues, 'grayHistogramCanvas', 'Histograma de Tons de Cinza', 'Tons de Cinza');
+                    displayHistogram(hsvValues.h, 'hsvHistogramCanvasH', 'Histograma de Matiz (H)', 'Matiz');
+                    displayHistogram(hsvValues.s, 'hsvHistogramCanvasS', 'Histograma de Saturação (S)', 'Saturação');
+                    displayHistogram(hsvValues.v, 'hsvHistogramCanvasV', 'Histograma de Brilho (V)', 'Brilho');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function rgbToHsv(r, g, b) {
+            r /= 255, g /= 255, b /= 255;
+            var max = Math.max(r, g, b), min = Math.min(r, g, b);
+            var h, s, v = max;
+
+            var d = max - min;
+            s = max === 0 ? 0 : d / max;
+
+            if (max === min) {
+                h = 0;
+            } else {
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+
+            return { h: h * 360, s: s, v: v };
+        }
+
+        function displayHistogram(values, canvasId, title, label) {
+            var ctx = document.getElementById(canvasId).getContext('2d');
+            if (canvasId === 'grayHistogramCanvas' && grayHistogramChart) {
+                grayHistogramChart.destroy();
+            } else if (canvasId === 'hsvHistogramCanvasH' && hsvHistogramChartH) {
+                hsvHistogramChartH.destroy();
+            } else if (canvasId === 'hsvHistogramCanvasS' && hsvHistogramChartS) {
+                hsvHistogramChartS.destroy();
+            } else if (canvasId === 'hsvHistogramCanvasV' && hsvHistogramChartV) {
+                hsvHistogramChartV.destroy();
+            }
+            let chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: values.map((_, i) => i),
+                    datasets: [{
+                        label: label,
+                        data: values,
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: title
+                        }
+                    }
+                }
+            });
+
+            if (canvasId === 'grayHistogramCanvas') {
+                grayHistogramChart = chart;
+            } else if (canvasId === 'hsvHistogramCanvasH') {
+                hsvHistogramChartH = chart;
+            } else if (canvasId === 'hsvHistogramCanvasS') {
+                hsvHistogramChartS = chart;
+            } else if (canvasId === 'hsvHistogramCanvasV') {
+                hsvHistogramChartV = chart;
+            }
+        }
+
+        async function extractHaralickDescriptors() {
+        const fileInput = document.getElementById('file-input');
+        const file = fileInput.files[0];
+        if (!file) {
+            alert("Por favor, selecione uma imagem primeiro.");
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = async function(event) {
+            try {
+                const imageData = event.target.result;
+                const image = Image.load(imageData, { format: ['jpg', 'png', 'gif', 'bmp', 'webp'] });
+                const grayImage = image.grey();
+                const glcm = grayImage.getGlcm({ direction: [0], normalize: true });
+                const haralick = glcm.getHaralickDescriptors();
+                displayHaralickDescriptors(haralick);
+            } catch (error) {
+                console.error('Erro ao calcular os descritores de Haralick:', error);
+            }
+        };
+
+        reader.readAsDataURL(file);
+    }
+
+
+        function displayHaralickDescriptors(descriptors) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<h2>Descritores de Haralick:</h2>';
+            const list = '<ul>';
+            for (const key in descriptors) {
+                list += `<li>${key}: ${descriptors[key]}</li>`;
+            }
+            list += '</ul>';
+            resultDiv.innerHTML += list;
+        }
+    </script>
+</body>
+</html>
