@@ -30,6 +30,7 @@ class CancerDetectionApp:
         process_menu.add_command(label="Generate Gray Histogram", command=self.generate_gray_histogram)
         process_menu.add_command(label="Generate 16-Tone Gray Histogram", command=self.generate_16_tone_gray_histogram)
         process_menu.add_command(label="Generate HSV Histogram", command=self.generate_hsv_histogram)
+        process_menu.add_command(label="Generate HSV Histogram (16x8)", command=self.generate_hsv_histogram_16_8)
         process_menu.add_command(label="Haralick Descriptors", command=self.extract_haralick_descriptors)
         process_menu.add_command(label="Hu Moments", command=self.extract_hu_moments)
         process_menu.add_command(label="Classify Sub-image", command=self.classify_sub_image)  
@@ -130,6 +131,19 @@ class CancerDetectionApp:
 
             plt.tight_layout()
             plt.show()
+    def generate_hsv_histogram_16_8(self):
+        if hasattr(self, 'image'):
+            hsv_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
+            h_bins = 16
+            v_bins = 8
+            hist = cv2.calcHist([hsv_image], [0, 2], None, [h_bins, v_bins], [0, 180, 0, 256])
+            plt.imshow(hist, interpolation='nearest')
+            plt.title('2D HSV Histogram (H: 16 bins, V: 8 bins)')
+            plt.xlabel('Hue')
+            plt.ylabel('Value')
+            plt.colorbar()
+            plt.show()
+
 
     def extract_haralick_descriptors(self):
         if hasattr(self, 'image'):
