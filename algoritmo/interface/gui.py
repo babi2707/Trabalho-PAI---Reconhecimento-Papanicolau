@@ -28,6 +28,7 @@ class CancerDetectionApp:
         process_menu = tk.Menu(menubar, tearoff=0)
         process_menu.add_command(label="Convert to Grayscale", command=self.convert_to_gray)
         process_menu.add_command(label="Generate Gray Histogram", command=self.generate_gray_histogram)
+        process_menu.add_command(label="Generate 16-Tone Gray Histogram", command=self.generate_16_tone_gray_histogram)
         process_menu.add_command(label="Generate HSV Histogram", command=self.generate_hsv_histogram)
         process_menu.add_command(label="Haralick Descriptors", command=self.extract_haralick_descriptors)
         process_menu.add_command(label="Hu Moments", command=self.extract_hu_moments)
@@ -84,6 +85,20 @@ class CancerDetectionApp:
             hist = cv2.calcHist([gray_image], [0], None, [256], [0, 256])
             plt.plot(hist)
             plt.title('Gray Histogram')
+            plt.xlabel('Gray Level')
+            plt.ylabel('Frequency')
+            plt.show()
+            
+    def generate_16_tone_gray_histogram(self):
+        if hasattr(self, 'image'):
+            if len(self.image.shape) == 3:
+                gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+            else:
+                gray_image = self.image
+            hist = cv2.calcHist([gray_image], [0], None, [16], [0, 256])
+            plt.bar(range(16), hist.flatten(), width=0.8, align='center')
+            plt.xticks(range(16))
+            plt.title('16-Tone Gray Histogram')
             plt.xlabel('Gray Level')
             plt.ylabel('Frequency')
             plt.show()
