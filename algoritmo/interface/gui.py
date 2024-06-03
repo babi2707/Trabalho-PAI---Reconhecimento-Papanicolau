@@ -35,6 +35,7 @@ class CancerDetectionApp:
         process_menu.add_command(label="Haralick Descriptors", command=self.extract_haralick_descriptors)
         process_menu.add_command(label="Calculate Haralick Descriptors", command=self.calculate_haralick_descriptors)
         process_menu.add_command(label="Hu Moments", command=self.extract_hu_moments)
+        process_menu.add_command(label="Calculate Hu Moments", command=self.calculate_hu_moments)
         process_menu.add_command(label="Classify Sub-image", command=self.classify_sub_image)  
         menubar.add_cascade(label="Process", menu=process_menu)
 
@@ -266,6 +267,29 @@ class CancerDetectionApp:
             for i in range(0,7):
                 huMoments[i] = -1 * np.sign(huMoments[i]) * np.log10(np.abs(huMoments[i]))
             messagebox.showinfo("Hu Moments", f"Hu Moments:\n{huMoments.flatten()}")           
+    def calculate_hu_moments(self):
+        if hasattr(self, 'image'):
+            # Convert the image to grayscale
+            gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+            moments_gray = cv2.moments(gray_image)
+            huMoments_gray = cv2.HuMoments(moments_gray)
+            huMoments_gray = [-1 * np.sign(hu) * np.log10(np.abs(hu)) if hu != 0 else 0 for hu in huMoments_gray]
+            
+            # Convert the image to HSV
+            hsv_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
+            h_channel, s_channel, v_channel = cv2.split(hsv_image)
+            moments_h = cv2.moments(h_channel)
+            moments_s = cv2.moments(s_channel)
+            moments_v = cv2.moments(v_channel)
+            huMoments_h = cv2.HuMoments(moments_h)
+            huMoments_s = cv2.HuMoments(moments_s)
+            huMoments_v = cv2.HuMoments(moments_v)
+            huMoments_h = [-1 * np.sign(hu) * np.log10(np.abs(hu)) if hu != 0 else 0 for hu in huMoments_h]
+            huMoments_s = [-1 * np.sign(hu) * np.log10(np.abs(hu)) if hu != 0 else 0 for hu in huMoments_s]
+            huMoments_v = [-1 * np.sign(hu) * np.log10(np.abs(hu)) if hu != 0 else 0 for hu in huMoments_v]
+            
+            messagebox.showinfo("Hu Moments", f"Hu Moments (Gray):\n{huMoments_gray}\n\nHu Moments (H Channel):\n{huMoments_h}\n\nHu Moments (S Channel):\n{huMoments_s}\n\nHu Moments (V Channel):\n{huMoments_v}")
+
     def classify_sub_image(self):  # Added this method
         if hasattr(self, 'image'):
             sub_image = self.image[100:300, 100:300]  # Example: select a sub-image
