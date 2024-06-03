@@ -31,6 +31,7 @@ class CancerDetectionApp:
         process_menu.add_command(label="Generate 16-Tone Gray Histogram", command=self.generate_16_tone_gray_histogram)
         process_menu.add_command(label="Generate HSV Histogram", command=self.generate_hsv_histogram)
         process_menu.add_command(label="Generate HSV Histogram (16x8)", command=self.generate_hsv_histogram_16_8)
+        process_menu.add_command(label="Calculate Co-occurrence Matrices", command=self.calculate_cooccurrence_matrices)
         process_menu.add_command(label="Haralick Descriptors", command=self.extract_haralick_descriptors)
         process_menu.add_command(label="Hu Moments", command=self.extract_hu_moments)
         process_menu.add_command(label="Classify Sub-image", command=self.classify_sub_image)  
@@ -73,10 +74,6 @@ class CancerDetectionApp:
             self.display_image()
         else:
             messagebox.showinfo("Info", "No grayscale image available")
-
-
-
-
     def generate_gray_histogram(self):
         if hasattr(self, 'image'):
             if len(self.image.shape) == 3:
@@ -143,8 +140,49 @@ class CancerDetectionApp:
             plt.ylabel('Value')
             plt.colorbar()
             plt.show()
+    def calculate_cooccurrence_matrices(self):
+        if hasattr(self, 'image'):
+            # Convert the image to grayscale
+            gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+            
+            # Quantize the image to 16 gray levels
+            gray_image = (gray_image // 16).astype(np.uint8)
+            
+            # Define the distances
+            distances = [1, 2, 4, 8, 16, 32]
+            
+            def cooccurrence_matrix(image, distance):
+                max_gray = 16
+                matrix = np.zeros((max_gray, max_gray), dtype=np.float32)
+                rows, cols = image.shape
+                for row in range(rows):
+                    for col in range(cols):
+                        if row + distance < rows and col + distance < cols:
+                            current_pixel = image[row, col]
+                            right_pixel = image[row, col + distance]
+                            bottom_pixel = image[row + distance, col]
+                            bottom_right_pixel = image[row + distance, col + distance]
+                            
+                            matrix[current_pixel, right_pixel] += 1
+                            matrix[current_pixel, bottom_pixel] += 1
+                            matrix[current_pixel, bottom_right_pixel] += 1
 
-
+                # Normalize the matrix
+                matrix /= np.sum(matrix)
+                return matrix
+            
+            # Calculate the co-occurrence matrices for each distance
+            cooccurrence_matrices = {distance: cooccurrence_matrix(gray_image, distance) for distance in distances}
+            
+            # Plot the co-occurrence matrices
+            fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+            axes = axes.flatten()
+            for ax, distance in zip(axes, distances):
+                ax.imshow(cooccurrence_matrices[distance], cmap='gray')
+                ax.set_title(f'Distance: {distance}')
+                ax.axis('off')
+            plt.tight_layout()
+            plt.show()
     def extract_haralick_descriptors(self):
         if hasattr(self, 'image'):
             gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
@@ -156,8 +194,6 @@ class CancerDetectionApp:
                 messagebox.showinfo("Haralick Descriptors", f"Contrast: {data['haralick']['contrast']}\nDissimilarity: {data['haralick']['dissimilarity']}\nHomogeneity: {data['haralick']['homogeneity']}\nEnergy: {data['haralick']['energy']}\nCorrelation: {data['haralick']['correlation']}\nASM: {data['haralick']['ASM']}")
             else:
                 messagebox.showerror("Error", "Failed to extract Haralick descriptors.")
-            
-
     def extract_hu_moments(self):
         if hasattr(self, 'image'):
             gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
@@ -166,9 +202,7 @@ class CancerDetectionApp:
             # Log scale hu moments
             for i in range(0,7):
                 huMoments[i] = -1 * np.sign(huMoments[i]) * np.log10(np.abs(huMoments[i]))
-            messagebox.showinfo("Hu Moments", f"Hu Moments:\n{huMoments.flatten()}")
-            
-
+            messagebox.showinfo("Hu Moments", f"Hu Moments:\n{huMoments.flatten()}")           
     def classify_sub_image(self):  # Added this method
         if hasattr(self, 'image'):
             sub_image = self.image[100:300, 100:300]  # Example: select a sub-image
@@ -181,11 +215,9 @@ class CancerDetectionApp:
                 messagebox.showinfo("Sub-image Classification", f"The predicted class is: {predicted_class}")
             else:
                 messagebox.showerror("Error", "Failed to classify the sub-image")
-
     def zoom_in(self):
         self.zoom_factor *= 1.1
         self.display_image()
-
     def zoom_out(self):
         self.zoom_factor /= 1.1
         self.display_image()
