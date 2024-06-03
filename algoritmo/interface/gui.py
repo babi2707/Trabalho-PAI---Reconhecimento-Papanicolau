@@ -33,6 +33,7 @@ class CancerDetectionApp:
         process_menu.add_command(label="Generate HSV Histogram (16x8)", command=self.generate_hsv_histogram_16_8)
         process_menu.add_command(label="Calculate Co-occurrence Matrices", command=self.calculate_cooccurrence_matrices)
         process_menu.add_command(label="Haralick Descriptors", command=self.extract_haralick_descriptors)
+        process_menu.add_command(label="Calculate Haralick Descriptors", command=self.calculate_haralick_descriptors)
         process_menu.add_command(label="Hu Moments", command=self.extract_hu_moments)
         process_menu.add_command(label="Classify Sub-image", command=self.classify_sub_image)  
         menubar.add_cascade(label="Process", menu=process_menu)
@@ -194,6 +195,68 @@ class CancerDetectionApp:
                 messagebox.showinfo("Haralick Descriptors", f"Contrast: {data['haralick']['contrast']}\nDissimilarity: {data['haralick']['dissimilarity']}\nHomogeneity: {data['haralick']['homogeneity']}\nEnergy: {data['haralick']['energy']}\nCorrelation: {data['haralick']['correlation']}\nASM: {data['haralick']['ASM']}")
             else:
                 messagebox.showerror("Error", "Failed to extract Haralick descriptors.")
+    def calculate_haralick_descriptors(self):
+        if hasattr(self, 'image'):
+            # Convert the image to grayscale
+            gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+            
+            # Quantize the image to 16 gray levels
+            gray_image = (gray_image // 16).astype(np.uint8)
+            
+            # Define the distances
+            distances = [1, 2, 4, 8, 16, 32]
+            
+            def cooccurrence_matrix(image, distance):
+                max_gray = 16
+                matrix = np.zeros((max_gray, max_gray), dtype=np.float32)
+                rows, cols = image.shape
+                for row in range(rows):
+                    for col in range(cols):
+                        if row + distance < rows and col + distance < cols:
+                            current_pixel = image[row, col]
+                            right_pixel = image[row, col + distance]
+                            bottom_pixel = image[row + distance, col]
+                            bottom_right_pixel = image[row + distance, col + distance]
+                            
+                            matrix[current_pixel, right_pixel] += 1
+                            matrix[current_pixel, bottom_pixel] += 1
+                            matrix[current_pixel, bottom_right_pixel] += 1
+
+                # Normalize the matrix
+                matrix /= np.sum(matrix)
+                return matrix
+
+            def calculate_entropy(matrix):
+                entropy = -np.sum(matrix * np.log2(matrix + 1e-10))
+                return entropy
+            
+            def calculate_homogeneity(matrix):
+                homogeneity = np.sum(matrix / (1 + np.abs(np.arange(matrix.shape[0])[:, None] - np.arange(matrix.shape[1])[None, :])))
+                return homogeneity
+            
+            def calculate_contrast(matrix):
+                contrast = np.sum(np.abs(np.arange(matrix.shape[0])[:, None] - np.arange(matrix.shape[1])[None, :]) ** 2 * matrix)
+                return contrast
+            
+            # Calculate the co-occurrence matrices for each distance
+            cooccurrence_matrices = {distance: cooccurrence_matrix(gray_image, distance) for distance in distances}
+            
+            # Calculate the Haralick descriptors for each co-occurrence matrix
+            haralick_descriptors = {}
+            for distance, matrix in cooccurrence_matrices.items():
+                entropy = calculate_entropy(matrix)
+                homogeneity = calculate_homogeneity(matrix)
+                contrast = calculate_contrast(matrix)
+                haralick_descriptors[distance] = {
+                    'entropy': entropy,
+                    'homogeneity': homogeneity,
+                    'contrast': contrast
+                }
+            
+            # Show the Haralick descriptors
+            descriptor_message = "\n".join([f"Distance: {distance}\nEntropy: {descriptors['entropy']:.4f}\nHomogeneity: {descriptors['homogeneity']:.4f}\nContrast: {descriptors['contrast']:.4f}\n" for distance, descriptors in haralick_descriptors.items()])
+            messagebox.showinfo("Haralick Descriptors", descriptor_message)
+
     def extract_hu_moments(self):
         if hasattr(self, 'image'):
             gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
