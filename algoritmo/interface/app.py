@@ -2,9 +2,11 @@ from flask import Flask, request, jsonify
 import cv2
 import numpy as np
 from skimage.feature import greycomatrix, greycoprops
+from skimage.feature.texture import greycomatrix, greycoprops
 from skimage.measure import moments_hu
 from werkzeug.utils import secure_filename
 import os
+import skimage
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
