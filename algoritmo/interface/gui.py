@@ -1,4 +1,3 @@
-
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import cv2
@@ -56,8 +55,12 @@ class CancerDetectionApp:
         self.image = None
         self.color_image = None  # Adicionando a inicialização do atributo color_image
 
-        # Carregar o modelo treinado
-        self.model = load_model('best_model.keras')
+
+        self.model = tf.keras.models.load_model("modelo_resnet50.h5", compile=False)
+        self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+
+
 
     def open_image(self):
         self.image_path = filedialog.askopenfilename()
@@ -364,18 +367,22 @@ class CancerDetectionApp:
             messagebox.showerror("Erro", "Nenhuma imagem carregada.")
             return
 
-        # Convertendo a imagem para tons de cinza e redimensionando para o tamanho do modelo
-        gray_image = self.convert_to_gray(self.image)
-        sub_image_resized = cv2.resize(gray_image, (32, 32))
+        # Convertendo a imagem para tons de cinza
+        gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+
+        # Convertendo a imagem em tons de cinza para RGB
+        rgb_image = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2RGB)
+
+        # Redimensionando a imagem para o tamanho esperado pelo modelo
+        sub_image_resized = cv2.resize(rgb_image, (100, 100))
 
         # Normalizando os valores de pixel para o intervalo [0, 1]
         sub_image_resized = sub_image_resized / 255.0
 
         # Adicionando uma dimensão para compatibilidade com o modelo
-        sub_image_resized = np.expand_dims(sub_image_resized, axis=-1)
         sub_image_resized = np.expand_dims(sub_image_resized, axis=0)
 
-        # Realizando a previsão usando o modelo
+        #  Realizando a previsão usando o modelo
         predictions = self.model.predict(sub_image_resized)
 
         # Obtendo o índice da classe com maior probabilidade
@@ -392,7 +399,12 @@ class CancerDetectionApp:
 
         # Exibindo o resultado da classificação
         messagebox.showinfo("Resultado da Classificação", f"Classe Predita: {classification_result}")
+        self.clear_image()
 
+    def clear_image(self):
+        self.image = None
+        self.color_image = None
+        # Você pode adicionar qualquer outra limpeza ou redefinição necessária aqui
     def zoom_in(self):
         self.zoom_factor *= 1.2
         self.display_image()
