@@ -8,6 +8,10 @@ from PIL import Image, ImageTk
 import tensorflow as tf
 import mahotas as mt
 from tensorflow.keras.models import load_model
+from tensorflow.keras.models import save_model
+import joblib
+import joblib
+from sklearn.svm import SVC
 
 class CancerDetectionApp:
     def __init__(self, root):
@@ -40,7 +44,8 @@ class CancerDetectionApp:
         process_menu.add_command(label="Calculate Haralick Descriptors Matrices", command=self.calculate_haralick_descriptors_for_matrices)
         process_menu.add_command(label="Hu Moments Color", command=self.calculate_color_hu_moments)
         process_menu.add_command(label="Calculate Hu Moments", command=self.calculate_hu_moments)
-        process_menu.add_command(label="Classify Sub-image", command=self.classify_sub_image)
+        process_menu.add_command(label="Classify Sub-image Resnet50", command=self.classify_sub_image)
+        process_menu.add_command(label="Classify Sub-image SVM", command=self.classify_sub_imageSVM)
         menubar.add_cascade(label="Process", menu=process_menu)
 
         zoom_menu = tk.Menu(menubar, tearoff=0)
@@ -56,8 +61,8 @@ class CancerDetectionApp:
         self.color_image = None  # Adicionando a inicialização do atributo color_image
 
 
-        self.model = tf.keras.models.load_model("modelo_resnet50.h5", compile=False)
-        self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+        #self.model = tf.keras.models.load_model("modelo_resnet500.h5", compile=False)
+        #self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
 
 
@@ -66,11 +71,9 @@ class CancerDetectionApp:
         self.image_path = filedialog.askopenfilename()
         if self.image_path:
             self.update_image()
-
     def update_image(self):
         self.image = cv2.imread(self.image_path)
         self.display_image()
-
     def display_image(self):
         if self.image is not None:
             zoomed_image = cv2.resize(self.image, None, fx=self.zoom_factor, fy=self.zoom_factor)
@@ -79,14 +82,12 @@ class CancerDetectionApp:
             image_tk = ImageTk.PhotoImage(image_pil)
             self.image_label.config(image=image_tk)
             self.image_label.image = image_tk
-
     def converterCinza(self):
         if hasattr(self, 'image'):
             self.color_image = self.image.copy()  # Salva uma cópia da imagem original
             gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
             self.image = gray_image
             self.display_image()
-
     def convert_to_gray(self, image):
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # Converter para tons de cinza
         resized_gray_image = cv2.resize(gray_image, (32, 32))  # Redimensionar para o tamanho desejado
@@ -98,7 +99,6 @@ class CancerDetectionApp:
             self.display_image()
         else:
             messagebox.showinfo("Info", "No grayscale image available")
-
     def generate_gray_histogram(self):
         if hasattr(self, 'image'):
             if len(self.image.shape) == 3:
@@ -111,8 +111,6 @@ class CancerDetectionApp:
             plt.xlabel('Gray Level')
             plt.ylabel('Frequency')
             plt.show()
-
-
     def generate_16_tone_gray_histogram(self):
         if hasattr(self, 'image'):
             if len(self.image.shape) == 3:
@@ -126,7 +124,6 @@ class CancerDetectionApp:
             plt.xlabel('Gray Level')
             plt.ylabel('Frequency')
             plt.show()
-
     def generate_hsv_histogram(self):
         if hasattr(self, 'image'):
             hsv_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
@@ -154,7 +151,6 @@ class CancerDetectionApp:
 
             plt.tight_layout()
             plt.show()
-
     def generate_hsv_histogram_16_8(self):
         if hasattr(self, 'image'):
             hsv_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
@@ -166,43 +162,7 @@ class CancerDetectionApp:
             plt.xlabel('Hue')
             plt.ylabel('Value')
             plt.colorbar()
-            plt.show()
-
-    # def calculate_cooccurrence_matrices(self):
-    #     if hasattr(self, 'image'):
-    #         gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
-    #         gray_image = (gray_image // 16).astype(np.uint8)
-    #         distances = [1, 2, 4, 8, 16, 32]
-
-    #         def cooccurrence_matrix(image, distance):
-    #             max_gray = 16
-    #             matrix = np.zeros((max_gray, max_gray), dtype=np.float32)
-    #             rows, cols = image.shape
-    #             for row in range(rows):
-    #                 for col in range(cols):
-    #                     if row + distance < rows and col + distance < cols:
-    #                         current_pixel = image[row, col]
-    #                         right_pixel = image[row, col + distance]
-    #                         bottom_pixel = image[row + distance, col]
-    #                         bottom_right_pixel = image[row + distance, col + distance]
-    #                         matrix[current_pixel, right_pixel] += 1
-    #                         matrix[current_pixel, bottom_pixel] += 1
-    #                         matrix[current_pixel, bottom_right_pixel] += 1
-
-    #             matrix /= np.sum(matrix)
-    #             return matrix
-
-    #         cooccurrence_matrices = {distance: cooccurrence_matrix(gray_image, distance) for distance in distances}
-
-    #         fig, axes = plt.subplots(2, 3, figsize=(12, 8))
-    #         axes = axes.flatten()
-    #         for ax, distance in zip(axes, distances):
-    #             ax.imshow(cooccurrence_matrices[distance], cmap='gray')
-    #             ax.set_title(f'Distance: {distance}')
-    #             ax.axis('off')
-    #         plt.tight_layout()
-    #         plt.show()
-    
+            plt.show()   
     def calculate_cooccurrence_matrices(self):
         if hasattr(self, 'image'):
             # Convertendo a imagem para tons de cinza
@@ -254,8 +214,6 @@ class CancerDetectionApp:
             text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             x_scroll.pack(side=tk.BOTTOM, fill=tk.X)
             y_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-
     def extract_haralick_descriptors(self):
         if hasattr(self, 'image'):
             gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
@@ -284,7 +242,6 @@ class CancerDetectionApp:
             messagebox.showinfo("Hu Moments (Color)", f"Hu Moments (Blue Channel):\n{channels_hu_moments[0]}\n\n"
                                                        f"Hu Moments (Green Channel):\n{channels_hu_moments[1]}\n\n"
                                                        f"Hu Moments (Red Channel):\n{channels_hu_moments[2]}")
-
     def calculate_haralick_descriptors_for_matrices(self):
         if hasattr(self, 'image'):
             gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
@@ -361,7 +318,6 @@ class CancerDetectionApp:
             moments = cv2.moments(gray_image)
             hu_moments = cv2.HuMoments(moments).flatten()
             messagebox.showinfo("Hu Moments", "\n".join([f"Hu Moment {i+1}: {hu_moments[i]}" for i in range(7)]))
-
     def classify_sub_image(self, event=None):
         if self.image is None:
             messagebox.showerror("Erro", "Nenhuma imagem carregada.")
@@ -382,7 +338,11 @@ class CancerDetectionApp:
         # Adicionando uma dimensão para compatibilidade com o modelo
         sub_image_resized = np.expand_dims(sub_image_resized, axis=0)
 
-        #  Realizando a previsão usando o modelo
+        # Carregando o modelo salvo (substitua 'path_to_your_model.h5' pelo caminho correto)
+        self.model = load_model('modelo_resnet500.h5', compile=False)
+        #self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+        # Realizando a previsão usando o modelo
         predictions = self.model.predict(sub_image_resized)
 
         # Obtendo o índice da classe com maior probabilidade
@@ -401,6 +361,47 @@ class CancerDetectionApp:
         messagebox.showinfo("Resultado da Classificação", f"Classe Predita: {classification_result}")
         self.clear_image()
 
+    def classify_sub_imageSVM(self, event=None):
+        if self.image is None:
+            messagebox.showerror("Erro", "Nenhuma imagem carregada.")
+            return
+
+        # Redimensionando a imagem para 128x128 pixels
+        resized_image = cv2.resize(self.image, (16, 8))
+
+        # Convertendo para tons de cinza se necessário
+        gray_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY) if len(resized_image.shape) > 2 else resized_image
+
+        # Normalizando os valores de pixel para o intervalo [0, 1]
+        normalized_image = gray_image / 255.0
+
+        # Ajustando a forma para ser aceita pelo modelo SVM (transformando em vetor unidimensional)
+        feature_vector = normalized_image.flatten()
+
+        # Carregando o modelo SVM previamente treinado com joblib
+        model = joblib.load('modelo_svm.pkl')
+
+        # Realizando a previsão usando o modelo SVM
+        try:
+            prediction = model.predict([feature_vector])[0]
+
+            # Lista de rótulos de classe correspondentes às classes esperadas pelo modelo
+            class_labels = ["ASC-H", "ASC-US", "HSIL", "LSIL", "Negative for intraepithelial lesion", "SCC"]
+
+            # Verificando se o índice está dentro do intervalo válido
+            if 0 <= prediction < len(class_labels):
+                classification_result = class_labels[prediction]
+            else:
+                classification_result = "Classe desconhecida"
+
+            # Exibindo o resultado da classificação
+            messagebox.showinfo("Resultado da Classificação", f"Classe: ASC-US,Classe Predita: {classification_result}")
+            self.clear_image()
+
+        except Exception as e:
+            messagebox.showerror("Erro na Predição", f"Erro ao prever a classe: {str(e)}")
+
+
     def clear_image(self):
         self.image = None
         self.color_image = None
@@ -408,7 +409,6 @@ class CancerDetectionApp:
     def zoom_in(self):
         self.zoom_factor *= 1.2
         self.display_image()
-
     def zoom_out(self):
         self.zoom_factor /= 1.2
         self.display_image()
