@@ -14,10 +14,6 @@ contadores = {}
 
 # Função para recortar e armazenar a sub-imagem
 def recortar_e_armazenar(imagem_path, nucleus_x, nucleus_y, bethesda_system, cell_id):
-    # Verificar se já salvamos 20 imagens dessa classificação
-    if contadores.get(bethesda_system, 0) >= 20:
-        return
-
     try:
         imagem = Image.open(imagem_path)
     except FileNotFoundError:
